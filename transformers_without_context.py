@@ -10,42 +10,61 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 
 def vectorize_comments(comments):
-    # Tokenize the comments. This will also truncate or pad the sequences to a fixed length.
-    tokens = tokenizer(comments.tolist(), padding=True, truncation=True, return_tensors="pt", max_length=512)
-    
-    # Generate embeddings for each token. For simplicity, we'll use the embeddings of the [CLS] token
-    # as the representation of the entire comment.
-    with torch.no_grad():
-        outputs = model(**tokens)
-        embeddings = outputs.last_hidden_state[:,0,:].numpy()  # Extract the embeddings of the [CLS] token
-    
-    return embeddings
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.eval()  # Set the model to evaluation mode
+    embeddings = []
+
+    # Assuming 'comments' is a list of text comments
+    for comment in comments:
+        # Tokenize the comment and move tokens to GPU
+        tokens = tokenizer(comment, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
+        
+        # Perform the forward pass and move the output tensor to CPU
+        with torch.no_grad():
+            outputs = model(**tokens)
+            # Extract the embeddings of the [CLS] token, and move back to CPU
+            embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
+            embeddings.append(embedding)
+
+    # Convert the list of embeddings into a numpy array
+    return np.vstack(embeddings)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
 
 # Initialize the tokenizer and model
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-model = BertModel.from_pretrained('bert-base-uncased')
+model = BertModel.from_pretrained('bert-base-uncased').to(device)
 
-data = pd.read_csv('saved_data\eminem_comments.csv')
-print("Total no. of comments:", len(data))
 
-external_data = pd.read_csv('saved_data/eminem_comments.csv')
-external_data = external_data.rename(columns={'CONTENT': 'comment_text', 'CLASS': 'spam_with_context'})
+EXTERNAL_DATA = 1
 
-# Remove non-english comments
-data = data[data['non_english'] == 0]
-print("No. of english comments:", len(data))
+if not EXTERNAL_DATA:
+    data = pd.read_csv('saved_data/eminem_comments.csv')
+    print("\nTotal no. of comments:", len(data))
 
-print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
-print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
+    # Remove non-english comments
+    data = data[data['non_english'] == 0]
+    print("No. of english comments:", len(data))
+    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
+    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
 
-# Reducing the number of samples corresponding to a majority class
-non_spam_sample = data[data['spam_with_context'] == 0].sample(n=600)
-data = data.drop(non_spam_sample.index)
+    # Reducing the number of samples corresponding to a majority class
+    non_spam_sample = data[data['spam_with_context'] == 0].sample(n=600, random_state=23)
+    data = data.drop(non_spam_sample.index)
 
-print("\nAfter undersampling:")
-print("No. of spam comments:", len(data[data['spam_with_context'] == 1]))
-print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
+    print("\nAfter undersampling:")
+    print("No. of spam comments:", len(data[data['spam_with_context'] == 1]))
+    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
 
+else:
+    # Use external dataset instead
+    data = pd.read_csv('saved_data/Youtube04-Eminem.csv')
+    data = data.rename(columns={'CONTENT': 'comment_text', 'CLASS': 'spam_with_context'})
+    print("\nTotal no. of comments:", len(data))
+    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
+    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
+    
 data['comment_text'] = data['comment_text'].fillna("")
 
 # Splitting the dataset into training and testing sets
@@ -58,8 +77,8 @@ print("Number of spam comments in training set:", sum(y_train == 1))
 print("Number of spam comments in test set:", sum(y_test == 1))
 
 # Vectorize the comment text
-X_train_vec = vectorize_comments(X_train)
-X_test_vec = vectorize_comments(X_test)
+X_train_vec = vectorize_comments(X_train.tolist())
+X_test_vec = vectorize_comments(X_test.tolist())
 
 # Initialize the classifier
 classifier = LogisticRegression(max_iter=1000)
@@ -74,6 +93,6 @@ y_pred = classifier.predict(X_test_vec)
 accuracy = accuracy_score(y_test, y_pred)
 report = classification_report(y_test, y_pred)
 
-print(accuracy)
+print("\nAccuracy:", accuracy)
 print()
 print(report)

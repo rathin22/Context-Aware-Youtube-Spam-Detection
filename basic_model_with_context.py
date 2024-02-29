@@ -10,18 +10,38 @@ from sklearn.metrics import accuracy_score, classification_report
 context_file_path = 'saved_data/eminem_video_context.csv'
 context_data = pd.read_csv(context_file_path)
 
+EXTERNAL_DATA = 0
+
 # Load the dataset
-file_path = 'saved_data\eminem_comments.csv'
-data = pd.read_csv(file_path)
-print("Total no. of comments:", len(data))
+if not EXTERNAL_DATA:
+    data = pd.read_csv('saved_data/eminem_comments.csv')
+    print("\nTotal no. of comments:", len(data))
 
-# Remove non-english comments
-data = data[data['non_english'] == 0]
-print("No. of english comments:", len(data))
+    # Remove non-english comments
+    data = data[data['non_english'] == 0]
+    print("No. of english comments:", len(data))
+    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
+    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
 
-# Reducing the number of samples corresponding to a majority class
-non_spam_sample = data[data['spam_with_context'] == 0].sample(n=600)
-comments_data = data.drop(non_spam_sample.index)
+    # Reducing the number of samples corresponding to a majority class
+    non_spam_sample = data[data['spam_with_context'] == 0].sample(n=600, random_state=23)
+    comments_data = data.drop(non_spam_sample.index)
+
+    print("\nAfter undersampling:")
+    print("No. of spam comments:", len(comments_data[comments_data['spam_with_context'] == 1]))
+    print("No. of non-spam comments:", len(comments_data[comments_data['spam_with_context'] == 0]))
+
+else:
+    # Use external dataset instead
+    data = pd.read_csv('saved_data/Youtube04-Eminem.csv')
+
+    # Eminem video id
+    data['video_id'] = 'uelHwf8o7_U'
+
+    comments_data = data.rename(columns={'CONTENT': 'comment_text', 'CLASS': 'spam_with_context'})
+    print("\nTotal no. of comments:", len(comments_data))
+    print("\nNo. of spam comments:", len(comments_data[comments_data['spam_with_context'] == 1]))
+    print("No. of non-spam comments:", len(comments_data[comments_data['spam_with_context'] == 0]))
 
 comments_data['comment_text'] = comments_data['comment_text'].fillna("")
 
@@ -32,6 +52,12 @@ merged_data = comments_data.merge(context_data, left_on='video_id', right_on='vi
 
 # Adding comment text twice to increase its weight
 merged_data['combined_features'] = (merged_data['comment_text'] + " " +
+                                    merged_data['comment_text'] + " " +
+                                    merged_data['comment_text'] + " " +
+                                    merged_data['comment_text'] + " " +
+                                    merged_data['comment_text'] + " " +
+                                    merged_data['comment_text'] + " " +
+                                    merged_data['comment_text'] + " " +
                                     merged_data['comment_text'] + " " +
                                     merged_data['video_title'] + " " +
                                     merged_data['video_description'] + " " +
@@ -58,7 +84,7 @@ y_pred_with_context = model_with_context.predict(X_test)
 # Evaluating the model
 accuracy_with_context = accuracy_score(y_test, y_pred_with_context)
 report_with_context = classification_report(y_test, y_pred_with_context)
-print(accuracy_with_context)
+print("\nAccuracy:", accuracy_with_context)
 print()
 print(report_with_context)
 
