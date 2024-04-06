@@ -78,16 +78,14 @@ def get_video_context(api_key, video_id, video_categories, youtube=None):
             thumbnail = thumbnails[size]
             break
 
-    #get_video_transcript(video_id)    
-    
-    return [title, description, tags, publish_time, obtain_time, category, thumbnail]
-
-# Get video captions/transcript - uses https://github.com/jdepoix/youtube-transcript-api
-def get_video_transcript(video_id):
+    # Get video captions/transcript - uses https://github.com/jdepoix/youtube-transcript-api
     transcript = YouTubeTranscriptApi.get_transcript(video_id)
     file_path = f'captions/captions_{video_id}.json'
     with open(file_path, 'w') as json_file:
         json.dump(transcript, json_file, indent=4)
+
+    return [title, description, tags, publish_time, obtain_time, category, thumbnail]
+
 
 def get_all_video_comments(api_key, video_id, max_comments=None, youtube=None):
     if not youtube:
@@ -103,13 +101,14 @@ def get_all_video_comments(api_key, video_id, max_comments=None, youtube=None):
             maxResults=100, # API allows max 100 per request
             pageToken=next_page_token,
             textFormat='plainText',
-            moderationStatus='heldForReview'
         ).execute()
         
         for comment_thread in response.get('items', []):
             comment_id = comment_thread['snippet']['topLevelComment']['id']
             top_comment = comment_thread['snippet']['topLevelComment']['snippet']
             comment_text = top_comment['textDisplay']
+            if len(comment_text.split()) < 3:
+                continue
             publish_time = top_comment['publishedAt']
             obtain_time = datetime.now(timezone.utc)
             obtain_time = obtain_time.replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -118,14 +117,17 @@ def get_all_video_comments(api_key, video_id, max_comments=None, youtube=None):
 
             comment = [comment_id, video_id, comment_text, publish_time, obtain_time, like_count, reply_count]
             comments.append(comment)
-            
-            # Check if we have reached max_comments
-            if max_comments and len(comments)>=max_comments:
-                return comments
         
         next_page_token = response.get('nextPageToken')
         if not next_page_token:
             break
+    
+    # Sort comments by the publish_time field
+    comments.sort(key=lambda x: x[3])  # Sorting by the 4th item in the list, which is publish_time
+    
+    # Optionally trim the list to max_comments if needed
+    if max_comments:
+        comments = comments[:max_comments]
     
     return comments
 
@@ -160,9 +162,9 @@ API_KEY = "AIzaSyB6qaMwoz9K9QXYE4es087YTiZFhbngyKo"
 VIDEO_ID = "H6lQkgJ-jRo" # 161 comments
 #VIDEO_ID = "89-GJHoqtiQ" # 1000 comments
 #VIDEO_ID = "WkLTWmlTaJM" # 4000 comments
-VIDEO_ID = ["9bZkp7q19f0", "CevxZvSJLk8", "KQ6zr6kCPj8", "uelHwf8o7_U", "pRpeEdMmmQ0"]
+VIDEO_ID = "mKdjycj-7eE"
 MAX_POPULAR_VIDEOS = 3
-MAX_COMMENTS_PER_VIDEO = 1
+MAX_COMMENTS_PER_VIDEO = 1000
 
 # Get video category mapping
 video_categories_file = 'saved_data/video_categories.json'
@@ -178,13 +180,13 @@ all_comments = []
 
 try:
     #for video_id, video_title in popular_videos.items():
-    for video_id in VIDEO_ID:
+    for video_id in [VIDEO_ID]:
         # Get video context
-        context = get_video_context(API_KEY, video_id, video_categories, youtube)
+        context = get_video_context(API_KEY, video_id, video_categories, youtube=youtube)
         video_contexts.loc[video_id] = context
 
         # Get video comments
-        comments = get_all_video_comments(API_KEY, video_id, MAX_COMMENTS_PER_VIDEO, youtube)
+        comments = get_all_video_comments(API_KEY, video_id, youtube=youtube, max_comments=1000)
         all_comments += comments
 
         # Archive webpage of video on web.archive.org - commented out for now because it takes a while to archive
@@ -192,7 +194,8 @@ try:
     
     video_contexts.to_csv('video_contexts.csv')
     
-    random.shuffle(all_comments)
+    #
+    # random.shuffle(all_comments)
     count = 1
     num_of_comments = len(all_comments)
     
@@ -226,7 +229,6 @@ except KeyboardInterrupt:
 
 try:
     # Second pass - with context
-
     count = 1
     num_of_comments = len(comment_labels[comment_labels['spam_without_context'] != ""])
     # Group comments by video_id to review them video by video
