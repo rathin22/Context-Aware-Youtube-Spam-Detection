@@ -4,69 +4,25 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import accuracy_score, classification_report
 import pandas as pd
-from transformers import BertTokenizer, BertModel
+from transformers import BertTokenizer, BertModel, DistilBertTokenizer, DistilBertModel
 import torch
 import numpy as np
 from sklearn.linear_model import LogisticRegression
-
-def vectorize_comments(comments):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.eval()  # Set the model to evaluation mode
-    embeddings = []
-
-    # Assuming 'comments' is a list of text comments
-    for comment in comments:
-        # Tokenize the comment and move tokens to GPU
-        tokens = tokenizer(comment, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
-        
-        # Perform the forward pass and move the output tensor to CPU
-        with torch.no_grad():
-            outputs = model(**tokens)
-            # Extract the embeddings of the [CLS] token, and move back to CPU
-            embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
-            embeddings.append(embedding)
-
-    # Convert the list of embeddings into a numpy array
-    return np.vstack(embeddings)
+from sklearn.decomposition import PCA
+from common_functions import load_data, vectorize_comments
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = "cuda"
 print(f"Using device: {device}")
 
 # Initialize the tokenizer and model
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 model = BertModel.from_pretrained('bert-base-uncased').to(device)
+# tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+# model = DistilBertModel.from_pretrained('distilbert-base-uncased').to(device)
 
-
-EXTERNAL_DATA = 1
-
-if not EXTERNAL_DATA:
-    data = pd.read_csv('saved_data/eminem_comments.csv')
-    print("\nTotal no. of comments:", len(data))
-
-    # Remove non-english comments
-    data = data[data['non_english'] == 0]
-    print("No. of english comments:", len(data))
-    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
-    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
-
-    # Reducing the number of samples corresponding to a majority class
-    non_spam_sample = data[data['spam_with_context'] == 0].sample(n=600, random_state=23)
-    data = data.drop(non_spam_sample.index)
-
-    print("\nAfter undersampling:")
-    print("No. of spam comments:", len(data[data['spam_with_context'] == 1]))
-    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
-
-else:
-    # Use external dataset instead
-    data = pd.read_csv('saved_data/Youtube04-Eminem.csv')
-    data = data.rename(columns={'CONTENT': 'comment_text', 'CLASS': 'spam_with_context'})
-    print("\nTotal no. of comments:", len(data))
-    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
-    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
+data = load_data(include_context=0, external_data=1)
     
-data['comment_text'] = data['comment_text'].fillna("")
-
 # Splitting the dataset into training and testing sets
 X = data['comment_text']
 y = data['spam_with_context']
@@ -77,8 +33,16 @@ print("Number of spam comments in training set:", sum(y_train == 1))
 print("Number of spam comments in test set:", sum(y_test == 1))
 
 # Vectorize the comment text
-X_train_vec = vectorize_comments(X_train.tolist())
-X_test_vec = vectorize_comments(X_test.tolist())
+X_train_vec = vectorize_comments(X_train.tolist(), model, tokenizer)
+X_test_vec = vectorize_comments(X_test.tolist(), model, tokenizer)
+print(X_train_vec.shape)
+
+# Apply PCA to reduce the dimensionality of the comment embeddings
+pca = PCA(n_components=50, random_state=42)  # Adjust the number of components as needed
+X_train_vec_pca = pca.fit_transform(X_train_vec)
+X_test_vec_pca = pca.transform(X_test_vec)
+# print("X_train_comment_vec_pca")
+# print(X_train_vec_pca.shape)
 
 # Initialize the classifier
 classifier = LogisticRegression(max_iter=1000)
