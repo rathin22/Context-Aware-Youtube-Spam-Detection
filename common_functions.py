@@ -47,32 +47,68 @@ def load_data(include_context=0, external_data=0):
     print(data.shape)
     return data
 
-def vectorize_comments(comments, model, tokenizer):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.eval()  # Set the model to evaluation mode
-    embeddings = []
-    token_lengths = []
-    # Assuming 'comments' is a list of text comments
-    for comment in comments:
-        # full_tokens = tokenizer(comment)
-        # token_length = len(full_tokens['input_ids'])
-        # token_lengths.append(token_length)
-        # if token_length > 512:
-        #    print("TOO MUCH")
-        #    print(comment)
-        #    print()
-        # Tokenize the comment and move tokens to GPU
+def get_mean_embedding_excluding_padding(model, tokenizer, text):
+    device = "cuda"
+    # Tokenize with padding=True to handle variable-length texts
+    encoded_input = tokenizer(text, return_tensors='pt', padding=True, truncation=True, max_length=512).to(device)
+    # Move all tensors in encoded_input to device
+    encoded_input = {key: tensor.to(device) for key, tensor in encoded_input.items()}  
+    attention_mask = encoded_input['attention_mask']
+    
+    # Generate embeddings
+    with torch.no_grad():
+        output = model(**encoded_input)
+    
+    # Use attention_mask to exclude PAD tokens
+    mask_expanded = attention_mask.unsqueeze(-1).expand(output.last_hidden_state.size()).to(device)
+    sum_embeddings = torch.sum(output.last_hidden_state * mask_expanded, 1)
+    sum_mask = torch.clamp(mask_expanded.sum(1), min=1e-9)
+    mean_embeddings = sum_embeddings / sum_mask
+    
+    return mean_embeddings.squeeze().cpu()
+
+def vectorize_comments(comments, model, tokenizer, video_titles=None):
+    def get_embedding(comment):
+        device = "cuda"
         tokens = tokenizer(comment, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
-        
-        # Perform the forward pass and move the output tensor to CPU
         with torch.no_grad():
             outputs = model(**tokens)
             # Extract the embeddings of the [CLS] token, and move back to CPU
             embedding = outputs.last_hidden_state[:, 0, :].cpu().numpy()
-            embeddings.append(embedding)
-    #print("Minimum and max token length:")
-    #print(min(token_lengths))
-    #print(max(token_lengths))
+            return embedding
+
+    model.eval()  # Set the model to evaluation mode
+    embeddings = []
+    token_lengths = []
+    saved_context_embeddings = {}
+    # Assuming 'comments' is a list of text comments
+    if video_titles is not None:
+        for comment, title in zip(comments, video_titles):
+            if title in saved_context_embeddings:
+                embeddings.append(saved_context_embeddings[title])
+                #print("Using saved embedding")
+            else:
+                embedding = get_mean_embedding_excluding_padding(model, tokenizer, comment)
+                embeddings.append(embedding)
+                saved_context_embeddings[title] = embedding
+    else:
+        embeddings = [get_mean_embedding_excluding_padding(model, tokenizer, comment) for comment in comments]
     
     # Convert the list of embeddings into a numpy array
+    return np.vstack(embeddings)
+
+def sf_encode(texts, model, video_titles=None):
+    if video_titles is None:
+        return model.encode(texts)
+
+    saved_context_embeddings = {}
+    embeddings = []
+    for text, title in zip(texts, video_titles):
+        if title in saved_context_embeddings:
+            embeddings.append(saved_context_embeddings[title])
+        else:
+            embedding = model.encode(text)
+            embeddings.append(embedding)
+            saved_context_embeddings[title] = embedding
+    
     return np.vstack(embeddings)

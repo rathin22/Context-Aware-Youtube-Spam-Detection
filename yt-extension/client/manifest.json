@@ -1,0 +1,18 @@
+{
+    "manifest_version": 3,
+    "name": "YouTube Comment Remover",
+    "version": "1.0",
+    "permissions": [
+        "activeTab"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [{
+        "matches": ["*://*.youtube.com/*"],
+        "js": ["content_script.js"]
+    }],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}
