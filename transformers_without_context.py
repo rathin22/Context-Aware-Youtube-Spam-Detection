@@ -10,6 +10,7 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.decomposition import PCA
 from common_functions import load_data, vectorize_comments
+from joblib import dump, load
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = "cuda"
@@ -49,6 +50,9 @@ classifier = LogisticRegression(max_iter=1000)
 
 # Training the model
 classifier.fit(X_train_vec, y_train)
+
+# Save the classifier
+dump(classifier, 'classifier.joblib')
 
 # Predicting on the test set
 y_pred = classifier.predict(X_test_vec)
