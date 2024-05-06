@@ -98,6 +98,7 @@ def get_all_video_comments(api_key, video_id, max_comments=None, youtube=None):
         response = youtube.commentThreads().list(
             part='snippet',
             videoId=video_id,
+            order='time',
             maxResults=100, # API allows max 100 per request
             pageToken=next_page_token,
             textFormat='plainText',
@@ -107,7 +108,7 @@ def get_all_video_comments(api_key, video_id, max_comments=None, youtube=None):
             comment_id = comment_thread['snippet']['topLevelComment']['id']
             top_comment = comment_thread['snippet']['topLevelComment']['snippet']
             comment_text = top_comment['textDisplay']
-            if len(comment_text.split()) < 3:
+            if len(comment_text.split()) < 5:
                 continue
             publish_time = top_comment['publishedAt']
             obtain_time = datetime.now(timezone.utc)
@@ -160,9 +161,6 @@ video_contexts = pd.DataFrame(columns=['video_id',
 video_contexts.set_index('video_id', inplace=True)
 API_KEY = "AIzaSyB6qaMwoz9K9QXYE4es087YTiZFhbngyKo"
 VIDEO_ID = "H6lQkgJ-jRo" # 161 comments
-#VIDEO_ID = "89-GJHoqtiQ" # 1000 comments
-#VIDEO_ID = "WkLTWmlTaJM" # 4000 comments
-VIDEO_ID = "mKdjycj-7eE"
 MAX_POPULAR_VIDEOS = 3
 MAX_COMMENTS_PER_VIDEO = 1000
 

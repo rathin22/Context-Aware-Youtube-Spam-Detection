@@ -4,36 +4,11 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import accuracy_score, classification_report
 import pandas as pd
+from common_functions import load_data
 
-EXTERNAL_DATA = 0
+EXTERNAL_DATA = 1
 
-if not EXTERNAL_DATA:
-    data = pd.read_csv('saved_data\eminem_comments.csv')
-    print("\nTotal no. of comments:", len(data))
-
-    # Remove non-english comments
-    data = data[data['non_english'] == 0]
-    print("No. of english comments:", len(data))
-    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
-    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
-
-    # Reducing the number of samples corresponding to a majority class
-    non_spam_sample = data[data['spam_with_context'] == 0].sample(n=600, random_state=23)
-    data = data.drop(non_spam_sample.index)
-
-    print("\nAfter undersampling:")
-    print("No. of spam comments:", len(data[data['spam_with_context'] == 1]))
-    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
-
-else:
-    # Use external dataset instead
-    data = pd.read_csv('saved_data/Youtube04-Eminem.csv')
-    data = data.rename(columns={'CONTENT': 'comment_text', 'CLASS': 'spam_with_context'})
-    print("\nTotal no. of comments:", len(data))
-    print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
-    print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
-
-data['comment_text'] = data['comment_text'].fillna("")
+data = load_data(0, EXTERNAL_DATA)
 
 # Splitting the dataset into training and testing sets
 X = data['comment_text']
@@ -55,7 +30,7 @@ y_pred = model.predict(X_test)
 
 # Evaluating the model
 accuracy = accuracy_score(y_test, y_pred)
-report = classification_report(y_test, y_pred)
+report = classification_report(y_test, y_pred, digits=4)
 print("\nAccuracy:", accuracy)
 print()
 print(report)

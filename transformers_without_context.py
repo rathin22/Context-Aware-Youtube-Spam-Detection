@@ -11,56 +11,52 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.decomposition import PCA
 from common_functions import load_data, vectorize_comments
 from joblib import dump, load
+import time
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = "cuda"
-print(f"Using device: {device}")
+def main():
+    device = "cuda"
+    # tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    # model = BertModel.from_pretrained('bert-base-uncased').to(device)
+    tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+    model = DistilBertModel.from_pretrained('distilbert-base-uncased').to(device)
+    model_without_context(model, tokenizer)
 
-# Initialize the tokenizer and model
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-model = BertModel.from_pretrained('bert-base-uncased').to(device)
-# tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-# model = DistilBertModel.from_pretrained('distilbert-base-uncased').to(device)
+def model_without_context(model, tokenizer):
+    start_time = time.time()
+    data = load_data(include_context=0, external_data=1)
+        
+    # Splitting the dataset into training and testing sets
+    X = data['comment_text']
+    y = data['spam_with_context']
 
-data = load_data(include_context=0, external_data=1)
-    
-# Splitting the dataset into training and testing sets
-X = data['comment_text']
-y = data['spam_with_context']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Vectorize the comment text
+    X_train_vec = vectorize_comments(X_train.tolist(), model, tokenizer)
+    X_test_vec = vectorize_comments(X_test.tolist(), model, tokenizer)
 
-print("Number of spam comments in training set:", sum(y_train == 1))
-print("Number of spam comments in test set:", sum(y_test == 1))
+    # Apply PCA to reduce the dimensionality of the comment embeddings
+    # pca = PCA(n_components=50, random_state=42)  # Adjust the number of components as needed
+    # X_train_vec_pca = pca.fit_transform(X_train_vec)
+    # X_test_vec_pca = pca.transform(X_test_vec)
 
-# Vectorize the comment text
-X_train_vec = vectorize_comments(X_train.tolist(), model, tokenizer)
-X_test_vec = vectorize_comments(X_test.tolist(), model, tokenizer)
-print(X_train_vec.shape)
+    # Initialize the classifier
+    classifier = LogisticRegression(max_iter=1000)
 
-# Apply PCA to reduce the dimensionality of the comment embeddings
-pca = PCA(n_components=50, random_state=42)  # Adjust the number of components as needed
-X_train_vec_pca = pca.fit_transform(X_train_vec)
-X_test_vec_pca = pca.transform(X_test_vec)
-# print("X_train_comment_vec_pca")
-# print(X_train_vec_pca.shape)
+    # Training the model
+    classifier.fit(X_train_vec, y_train)
 
-# Initialize the classifier
-classifier = LogisticRegression(max_iter=1000)
+    # Save the classifier
+    #dump(classifier, 'classifier.joblib')
 
-# Training the model
-classifier.fit(X_train_vec, y_train)
+    # Predicting on the test set
+    y_pred = classifier.predict(X_test_vec)
 
-# Save the classifier
-dump(classifier, 'classifier.joblib')
+    # Evaluating the model
+    accuracy = accuracy_score(y_test, y_pred)
+    report = classification_report(y_test, y_pred, digits=4)
 
-# Predicting on the test set
-y_pred = classifier.predict(X_test_vec)
-
-# Evaluating the model
-accuracy = accuracy_score(y_test, y_pred)
-report = classification_report(y_test, y_pred)
-
-print("\nAccuracy:", accuracy)
-print()
-print(report)
+    print(report)
+    end_time = time.time()
+    duration = end_time - start_time
+    print(f"Time taken: {duration} seconds")

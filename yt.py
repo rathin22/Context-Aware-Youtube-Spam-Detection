@@ -157,9 +157,7 @@ video_contexts = pd.DataFrame(columns=['video_id',
                                        ])
 video_contexts.set_index('video_id', inplace=True)
 API_KEY = "AIzaSyB6qaMwoz9K9QXYE4es087YTiZFhbngyKo"
-VIDEO_ID = "H6lQkgJ-jRo" # 161 comments
-#VIDEO_ID = "89-GJHoqtiQ" # 1000 comments
-#VIDEO_ID = "WkLTWmlTaJM" # 4000 comments
+
 VIDEO_ID = ["9bZkp7q19f0", "CevxZvSJLk8", "KQ6zr6kCPj8", "uelHwf8o7_U", "pRpeEdMmmQ0"]
 MAX_POPULAR_VIDEOS = 3
 MAX_COMMENTS_PER_VIDEO = 1

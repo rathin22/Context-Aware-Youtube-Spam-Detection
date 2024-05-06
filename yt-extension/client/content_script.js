@@ -12,17 +12,38 @@ async function fetchSpamStatuses(commentTexts, _videoId) {
     return data.spam
 }
 
-// async function hideSpamComments() {
-//     const comments = document.querySelectorAll('ytd-comment-thread-renderer');
-//     const commentTexts = Array.from(comments).map(commentElement => commentElement.querySelector('#content-text').innerText);
+async function hideSpamComments(videoId) {
+    const commentElements = document.querySelectorAll('ytd-comment-thread-renderer');
+    const commentTexts = Array.from(commentElements).map(
+        commentElement => commentElement.querySelector('#content-text').innerText
+    );
 
-//     const spamStatuses = await fetchSpamStatuses(commentTexts);
-//     commentElements.forEach((element, index) => {
-//         if (spamStatuses[index]) {
-//             element.style.display = 'none';  // Hides the comment if it is classified as spam
-//         }
-//     });
-// }
+    const spamStatuses = await fetchSpamStatuses(commentTexts, videoId);
+    if(spamStatuses) {
+        commentElements.forEach((element, index) => {
+            hideCommentIfSpam(element, spamStatuses[index])
+            // highlightComment(element, spamStatuses[index])
+        });
+    }
+
+}
+
+function hideCommentIfSpam(element, isSpam){
+    if(isSpam){
+        element.style.display = 'none';
+    }
+}
+// Used for demonstration and testing purposes
+function highlightComment(element, isSpam){
+    if (isSpam) {
+        element.style.backgroundColor = 'red';
+        //element.style.color = 'white'; // Change text color for better readability
+    }
+    else {
+        element.style.backgroundColor = 'lightgreen';
+    }
+}
+
 
 async function fetchVideoDetails(videoId) {
     const apiKey = 'AIzaSyB6qaMwoz9K9QXYE4es087YTiZFhbngyKo';
@@ -41,7 +62,7 @@ async function fetchVideoDetails(videoId) {
             title: snippet.title,
             description: snippet.description,
             tags: tags,
-            category: snippet.categoryId  // You might need another API call to convert categoryId to a human-readable form
+            category: snippet.categoryId
         };
     }
 
@@ -53,45 +74,31 @@ function getVideoIdFromUrl() {
     return urlParams.get('v');  // 'v' is the parameter name for video IDs in YouTube URLs
 }
 
+async function sendVideoDetails(videoId) {
+    const videoInfo = await fetchVideoDetails(videoId)
+    console.log(videoInfo)
+
+    // Send context information
+    await fetch('http://localhost:5000/send_video_details', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({...videoInfo, videoId})
+    });
+}
+
 async function initializeSpamFiltering() {
     const videoId = getVideoIdFromUrl();
     if (!videoId) {
         console.error('No video ID found');
         return;
     }
-    console.log(videoId)
-    const video_info = await fetchVideoDetails(videoId)
-    console.log(video_info)
+    
+    sendVideoDetails(videoId)
 
-    // Send context information
-    await fetch('http://localhost:5000/send_video_details', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({...video_info, videoId})
-    });
-
-    // Run this function periodically to handle dynamic comment loading
-    // setInterval(function(){ highlightSpamComments(videoId) }, 10000);
-    highlightSpamComments(videoId)
+    hideSpamComments(videoId)
 }
 
-async function highlightSpamComments(videoId) {
-    const commentElements = document.querySelectorAll('ytd-comment-thread-renderer');
-    const commentTexts = Array.from(commentElements).map(
-        commentElement => commentElement.querySelector('#content-text').innerText
-    );
 
-    const spamStatuses = await fetchSpamStatuses(commentTexts, videoId);
-    commentElements.forEach((element, index) => {
-        if (spamStatuses[index]) {
-            element.style.backgroundColor = 'red';
-            element.style.color = 'white'; // Change text color for better readability
-        }
-        else {
-            element.style.backgroundColor = 'green';
-        }
-    });
-}
 
 // initializeSpamFiltering()
 setInterval(initializeSpamFiltering, 10000)

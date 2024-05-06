@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
 import joblib
-from transformers import BertTokenizer, BertModel
+from transformers import BertTokenizer, BertModel, DistilBertTokenizer, DistilBertModel
 import sys
 import os
 import numpy as np
@@ -27,8 +27,8 @@ device = "cuda"
 # Load your trained model
 classifier = joblib.load('yt-extension/server/classifier.joblib')
 classifier_with_context = joblib.load('yt-extension/server/classifier_with_context.joblib')
-bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-bert_model = BertModel.from_pretrained('bert-base-uncased').to(device)
+bert_tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+bert_model = DistilBertModel.from_pretrained('distilbert-base-uncased').to(device)
 
 # Store video details in memory for simplicity; consider a database for production
 context_store = {}

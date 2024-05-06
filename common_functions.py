@@ -27,13 +27,13 @@ def load_data(include_context=0, external_data=0):
         context_file_path = 'saved_data/eminem_video_context.csv'
 
     else:
-        # Use external dataset instead
+        # Use external dataset
         data = pd.read_csv('saved_data/online_dataset/combined_data.csv')
         data = data.drop(['COMMENT_ID', 'AUTHOR'], axis=1)
         data = data.rename(columns={'CONTENT': 'comment_text', 'CLASS': 'spam_with_context'})
-        print("\nTotal no. of comments:", len(data))
-        print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
-        print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
+        # print("\nTotal no. of comments:", len(data))
+        # print("\nNo. of spam comments:", len(data[data['spam_with_context'] == 1]))
+        # print("No. of non-spam comments:", len(data[data['spam_with_context'] == 0]))
 
         context_file_path = 'saved_data/online_dataset/video_contexts.csv'
 
@@ -42,9 +42,7 @@ def load_data(include_context=0, external_data=0):
         context_data = context_data.drop(['video_thumbnail'], axis=1)
         # Merge the comment data with the video details based on video_id
         data = data.merge(context_data, on='video_id', how='left')
-        print("merged data")
         
-    print(data.shape)
     return data
 
 def get_mean_embedding_excluding_padding(model, tokenizer, text):
@@ -68,9 +66,9 @@ def get_mean_embedding_excluding_padding(model, tokenizer, text):
     return mean_embeddings.squeeze().cpu()
 
 def vectorize_comments(comments, model, tokenizer, video_titles=None):
-    def get_embedding(comment):
+    def get_embedding(model, tokenizer, text):
         device = "cuda"
-        tokens = tokenizer(comment, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
+        tokens = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=512).to(device)
         with torch.no_grad():
             outputs = model(**tokens)
             # Extract the embeddings of the [CLS] token, and move back to CPU
@@ -88,11 +86,11 @@ def vectorize_comments(comments, model, tokenizer, video_titles=None):
                 embeddings.append(saved_context_embeddings[title])
                 #print("Using saved embedding")
             else:
-                embedding = get_mean_embedding_excluding_padding(model, tokenizer, comment)
+                embedding = get_embedding(model, tokenizer, comment)
                 embeddings.append(embedding)
                 saved_context_embeddings[title] = embedding
     else:
-        embeddings = [get_mean_embedding_excluding_padding(model, tokenizer, comment) for comment in comments]
+        embeddings = [get_embedding(model, tokenizer, comment) for comment in comments]
     
     # Convert the list of embeddings into a numpy array
     return np.vstack(embeddings)
